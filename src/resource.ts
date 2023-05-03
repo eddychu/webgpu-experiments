@@ -15,3 +15,10 @@ export const createBuffer = (device: GPUDevice, arr: Float32Array | Uint16Array,
     buffer.unmap();
     return buffer;
 };
+
+export const createUniform = (device: GPUDevice, size: number, usage: number) => {
+    return device.createBuffer({
+        size,
+        usage: GPUBufferUsage.UNIFORM | usage
+    });
+}

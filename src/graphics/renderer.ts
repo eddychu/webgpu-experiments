@@ -67,10 +67,10 @@ export default class Renderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
-        this._cameraPositionBuffer = this._device.createBuffer({
-            size: 4 * 4,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
+        // this._cameraPositionBuffer = this._device.createBuffer({
+        //     size: 4 * 4,
+        //     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        // });
 
 
         const uniformBindGroupLayout = this._device.createBindGroupLayout({
@@ -102,13 +102,13 @@ export default class Renderer {
                     type: "uniform"
                 }
             },
-            {
-                binding: 4,
-                visibility: GPUShaderStage.FRAGMENT,
-                buffer: {
-                    type: "uniform"
-                }
-            },
+                // {
+                //     binding: 4,
+                //     visibility: GPUShaderStage.FRAGMENT,
+                //     buffer: {
+                //         type: "uniform"
+                //     }
+                // },
             ]
         });
 
@@ -139,12 +139,12 @@ export default class Renderer {
                     buffer: this._materialUniformBuffer
                 }
             },
-            {
-                binding: 4,
-                resource: {
-                    buffer: this._cameraPositionBuffer
-                }
-            },
+                // {
+                //     binding: 4,
+                //     resource: {
+                //         buffer: this._cameraPositionBuffer
+                //     }
+                // },
             ]
         });
 
@@ -232,48 +232,54 @@ export default class Renderer {
         });
     }
 
-    public update(mesh: MeshNode, light: LightNode, camera: CameraNode) {
-        const viewMatrix = camera.transform.localMatrix;
-        const projectionMatrix = camera.projectionMatrix;
-        const viewProjectionMatrix = mat4.multiply(mat4.create(), projectionMatrix, viewMatrix);
-        console.log(viewProjectionMatrix as Float32Array)
-
-        this._device.queue.writeBuffer(this._viewUniformBuffer as GPUBuffer, 0, new Float32Array(viewProjectionMatrix));
-
-        const modelMatrix = mesh.transform.worldMatrix;
-        const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelMatrix));
-        const transformUniformData = new Float32Array(16 * 2);
-        transformUniformData.set(modelMatrix, 0);
-        transformUniformData.set(normalMatrix, 16);
-        this._device.queue.writeBuffer(this._transformUniformBuffer as GPUBuffer, 0, transformUniformData);
-
-        const lightUniformData = new Float32Array(4 * 3);
-        lightUniformData.set(light.transform.position, 0);
-        lightUniformData.set((light.light as PointLight).color, 4);
-        lightUniformData.set([(light.light as PointLight).intensity], 4 * 2);
-
-        this._device.queue.writeBuffer(this._lightUniformBuffer as GPUBuffer, 0, lightUniformData);
-
-
-        this._device.queue.writeBuffer(this._cameraPositionBuffer as GPUBuffer, 0, new Float32Array(camera.transform.position));
-
-        const materialUniformData = new Float32Array(4 * 3);
-        const phongMaterial = mesh.material as PhongMaterial;
-        materialUniformData.set(phongMaterial.diffuse, 0);
-        materialUniformData.set(phongMaterial.specular, 4);
-        materialUniformData.set([phongMaterial.shininess], 4 * 2);
-
-        this._device.queue.writeBuffer(this._materialUniformBuffer as GPUBuffer, 0, materialUniformData);
-
-
-    }
 
     public render(mesh: MeshNode, light: LightNode, camera: CameraNode) {
         if (!this._initialized) {
             this._init(mesh, light, camera);
-            this.update(mesh, light, camera);
             this._initialized = true;
         }
+
+        if (camera.isDirty) {
+            const projectionMatrix = camera.projectionMatrix;
+            this._device.queue.writeBuffer(this._viewUniformBuffer as GPUBuffer, 0, new Float32Array(projectionMatrix));
+            // this._device.queue.writeBuffer(this._cameraPositionBuffer as GPUBuffer, 0, new Float32Array(camera.transform.position));
+            const modelViewMatrix = mat4.multiply(mat4.create(), camera.transform.localMatrix, mesh.transform.worldMatrix);
+            const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelViewMatrix));
+            const transformUniformData = new Float32Array(16 * 2);
+            transformUniformData.set(modelViewMatrix, 0);
+            transformUniformData.set(normalMatrix, 16);
+            this._device.queue.writeBuffer(this._transformUniformBuffer as GPUBuffer, 0, transformUniformData);
+            camera.isDirty = false;
+
+        }
+
+        if (mesh.isDirty) {
+            // const modelViewMatrix = mat4.multiply(mat4.create(), camera.transform.localMatrix, camera.transform.worldMatrix);
+            // const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelViewMatrix));
+            // const transformUniformData = new Float32Array(16 * 2);
+            // transformUniformData.set(modelViewMatrix, 0);
+            // transformUniformData.set(normalMatrix, 16);
+            // this._device.queue.writeBuffer(this._transformUniformBuffer as GPUBuffer, 0, transformUniformData);
+            const materialUniformData = new Float32Array(4 * 3);
+            const phongMaterial = mesh.material as PhongMaterial;
+            materialUniformData.set(phongMaterial.diffuse, 0);
+            materialUniformData.set(phongMaterial.specular, 4);
+            materialUniformData.set([phongMaterial.shininess], 4 * 2);
+            this._device.queue.writeBuffer(this._materialUniformBuffer as GPUBuffer, 0, materialUniformData);
+            mesh.isDirty = false;
+        }
+
+        if (light.isDirty) {
+            const lightUniformData = new Float32Array(4 * 3);
+            lightUniformData.set(light.transform.position, 0);
+            lightUniformData.set((light.light as PointLight).color, 4);
+            lightUniformData.set([(light.light as PointLight).intensity], 4 * 2);
+
+            this._device.queue.writeBuffer(this._lightUniformBuffer as GPUBuffer, 0, lightUniformData);
+            light.isDirty = false;
+        }
+
+
         const commandEncoder = this._device.createCommandEncoder();
         const textureView = this._ctx.getCurrentTexture().createView();
         const renderPassDescriptor: GPURenderPassDescriptor = {

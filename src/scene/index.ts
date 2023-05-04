@@ -47,6 +47,7 @@ export class SceneNode {
     public type: SceneNodeType;
     public children: SceneNode[] = [];
     public transform: Transform;
+    public isDirty: boolean = true;
     constructor(type: SceneNodeType) {
         this.type = type;
         this.transform = Transform.identity();

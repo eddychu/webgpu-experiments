@@ -5,7 +5,6 @@ export const createBuffer = (device: GPUDevice, arr: Float32Array | Uint16Array,
         mappedAtCreation: true
     };
 
-    console.log(desc);
     let buffer = device.createBuffer(desc);
 
     const writeArray =

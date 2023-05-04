@@ -4,30 +4,13 @@ import Scene, { CameraNode, LightNode, MeshNode } from "../scene";
 import { createBuffer } from "./resource";
 import { PointLight } from "../lights";
 import { PhongMaterial } from "../materials";
-
+import phongShader from "../shaders/phong.wgsl?raw";
 export default class Renderer {
     private _dom: HTMLCanvasElement;
     private _ctx: GPUCanvasContext;
     private _device: GPUDevice;
     private _swapchainFormat: GPUTextureFormat = "bgra8unorm";
-    // private _mainPipeline: GPURenderPipeline;
-    // private _materialBindGroupLayout: GPUBindGroupLayout;
-    // private _materialBindGroup: GPUBindGroup;
-    // private _transformBindGroupLayout: GPUBindGroupLayout;
-    // private _transformBindGroup: GPUBindGroup;
-    // private _cameraBindGroupLayout: GPUBindGroupLayout;
-    // private _cameraBindGroup: GPUBindGroup;
     private _mainPipeline?: GPURenderPipeline;
-    private _positionBuffer?: GPUBuffer;
-    private _normalBuffer?: GPUBuffer;
-    private _uvBuffer?: GPUBuffer;
-    private _indexBuffer?: GPUBuffer;
-    private _viewUniformBuffer?: GPUBuffer;
-    private _materialUniformBuffer?: GPUBuffer;
-    private _transformUniformBuffer?: GPUBuffer;
-    private _lightUniformBuffer?: GPUBuffer;
-    private _initialized: boolean = false;
-    private _uniformBindGroup?: GPUBindGroup;
     private _depthTexture?: GPUTexture;
     private _depthTextureView?: GPUTextureView;
     constructor(dom: HTMLCanvasElement, device: GPUDevice) {
@@ -39,37 +22,12 @@ export default class Renderer {
             device: this._device,
             format: this._swapchainFormat
         });
+        this._init();
     }
 
-    private _init(mesh: MeshNode, light: LightNode, camera: CameraNode) {
-        const geometry = mesh.geometry;
-        const material = mesh.material;
-        // view_proj matrix
-        this._viewUniformBuffer = this._device.createBuffer({
-            size: 4 * 16,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-
-        this._transformUniformBuffer = this._device.createBuffer({
-            size: 4 * 16 * 2,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-
-        this._lightUniformBuffer = this._device.createBuffer({
-            size: 4 * 4 * 3,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
+    private _init() {
 
 
-        this._materialUniformBuffer = this._device.createBuffer({
-            size: 4 * 4 * 3,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-
-        this._positionBuffer = createBuffer(this._device, geometry.positions, GPUBufferUsage.VERTEX);
-        this._normalBuffer = createBuffer(this._device, geometry.normals as Float32Array, GPUBufferUsage.VERTEX);
-        this._uvBuffer = createBuffer(this._device, geometry.texCoords as Float32Array, GPUBufferUsage.VERTEX);
-        this._indexBuffer = createBuffer(this._device, geometry.indices as Uint16Array, GPUBufferUsage.INDEX);
 
         this._depthTexture = this._device.createTexture({
             size: {
@@ -84,7 +42,7 @@ export default class Renderer {
         this._depthTextureView = this._depthTexture.createView();
 
         const shader = this._device.createShaderModule({
-            code: material.shader
+            code: phongShader
         });
 
         this._mainPipeline = this._device.createRenderPipeline({
@@ -134,84 +92,9 @@ export default class Renderer {
             },
         });
 
-        this._uniformBindGroup = this._device.createBindGroup({
-            layout: this._mainPipeline.getBindGroupLayout(0),
-            entries: [{
-                binding: 0,
-                resource: {
-                    buffer: this._viewUniformBuffer
-                }
-            },
-            {
-                binding: 1,
-                resource: {
-                    buffer: this._transformUniformBuffer
-                }
-            },
-            {
-                binding: 2,
-                resource: {
-                    buffer: this._lightUniformBuffer
-                }
-            },
-            {
-                binding: 3,
-                resource: {
-                    buffer: this._materialUniformBuffer
-                }
-            },
-            ]
-        });
+
     }
-
-
-    public render(mesh: MeshNode, light: LightNode, camera: CameraNode) {
-        if (!this._initialized) {
-            this._init(mesh, light, camera);
-            this._initialized = true;
-        }
-
-        if (camera.isDirty) {
-            const projectionMatrix = camera.projectionMatrix;
-            this._device.queue.writeBuffer(this._viewUniformBuffer as GPUBuffer, 0, new Float32Array(projectionMatrix));
-            // this._device.queue.writeBuffer(this._cameraPositionBuffer as GPUBuffer, 0, new Float32Array(camera.transform.position));
-            const modelViewMatrix = mat4.multiply(mat4.create(), camera.transform.localMatrix, mesh.transform.worldMatrix);
-            const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelViewMatrix));
-            const transformUniformData = new Float32Array(16 * 2);
-            transformUniformData.set(modelViewMatrix, 0);
-            transformUniformData.set(normalMatrix, 16);
-            this._device.queue.writeBuffer(this._transformUniformBuffer as GPUBuffer, 0, transformUniformData);
-            camera.isDirty = false;
-
-        }
-
-        if (mesh.isDirty) {
-            // const modelViewMatrix = mat4.multiply(mat4.create(), camera.transform.localMatrix, camera.transform.worldMatrix);
-            // const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelViewMatrix));
-            // const transformUniformData = new Float32Array(16 * 2);
-            // transformUniformData.set(modelViewMatrix, 0);
-            // transformUniformData.set(normalMatrix, 16);
-            // this._device.queue.writeBuffer(this._transformUniformBuffer as GPUBuffer, 0, transformUniformData);
-            const materialUniformData = new Float32Array(4 * 3);
-            const phongMaterial = mesh.material as PhongMaterial;
-            materialUniformData.set(phongMaterial.diffuse, 0);
-            materialUniformData.set(phongMaterial.specular, 4);
-            materialUniformData.set([phongMaterial.shininess], 4 * 2);
-            this._device.queue.writeBuffer(this._materialUniformBuffer as GPUBuffer, 0, materialUniformData);
-            mesh.isDirty = false;
-        }
-
-        if (light.isDirty) {
-            const lightUniformData = new Float32Array(4 * 3);
-            lightUniformData.set(light.transform.position, 0);
-            lightUniformData.set((light.light as PointLight).color, 4);
-            lightUniformData.set([(light.light as PointLight).intensity], 4 * 2);
-
-            this._device.queue.writeBuffer(this._lightUniformBuffer as GPUBuffer, 0, lightUniformData);
-            light.isDirty = false;
-        }
-
-
+    public render(scene: Scene) {
         const commandEncoder = this._device.createCommandEncoder();
         const textureView = this._ctx.getCurrentTexture().createView();
         const renderPassDescriptor: GPURenderPassDescriptor = {
@@ -233,15 +116,127 @@ export default class Renderer {
         };
 
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-
         passEncoder.setPipeline(this._mainPipeline as GPURenderPipeline);
-        passEncoder.setBindGroup(0, this._uniformBindGroup as GPUBindGroup);
-        passEncoder.setVertexBuffer(0, this._positionBuffer as GPUBuffer);
-        passEncoder.setVertexBuffer(1, this._normalBuffer as GPUBuffer);
-        passEncoder.setVertexBuffer(2, this._uvBuffer as GPUBuffer);
-        passEncoder.setIndexBuffer(this._indexBuffer as GPUBuffer, "uint16");
-        passEncoder.drawIndexed(mesh.geometry.indices.length, 1, 0, 0, 0);
+        const light = scene.lights[0];
+        const camera = scene.camera as CameraNode;
+
+        // this._device.queue.writeBuffer(this._cameraPositionBuffer as GPUBuffer, 0, new Float32Array(camera.transform.position));
+
+
+
+
+
+        for (const mesh of scene.meshes) {
+            this.renderObject(mesh, camera, light, passEncoder);
+        }
+
         passEncoder.end();
         this._device.queue.submit([commandEncoder.finish()]);
+    }
+
+    public resize(width: number, height: number) {
+        this._depthTexture = this._device.createTexture({
+            size: {
+                width: width,
+                height: height,
+                depthOrArrayLayers: 1
+            },
+            format: "depth24plus-stencil8",
+            usage: GPUTextureUsage.RENDER_ATTACHMENT
+        });
+        this._depthTextureView = this._depthTexture.createView();
+        // this._ctx.configure({
+        //     device: this._device,
+        //     format: this._swapchainFormat,
+        // });
+    }
+
+    public renderObject(mesh: MeshNode, camera: CameraNode, light: LightNode, passEncoder: GPURenderPassEncoder) {
+
+        const viewUniformBuffer = this._device.createBuffer({
+            size: 4 * 16,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+        const transformUniformBuffer = this._device.createBuffer({
+            size: 4 * 16 * 2,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+        const lightUniformBuffer = this._device.createBuffer({
+            size: 4 * 4 * 3,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+
+        const materialUniformBuffer = this._device.createBuffer({
+            size: 4 * 4 * 3,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+
+        const uniformBindGroup = this._device.createBindGroup({
+            layout: (this._mainPipeline as GPURenderPipeline).getBindGroupLayout(0),
+            entries: [{
+                binding: 0,
+                resource: {
+                    buffer: viewUniformBuffer
+                }
+            },
+            {
+                binding: 1,
+                resource: {
+                    buffer: transformUniformBuffer
+                }
+            },
+            {
+                binding: 2,
+                resource: {
+                    buffer: lightUniformBuffer
+                }
+            },
+            {
+                binding: 3,
+                resource: {
+                    buffer: materialUniformBuffer
+                }
+            },
+            ]
+        });
+        const projectionMatrix = camera.projectionMatrix;
+        this._device.queue.writeBuffer(viewUniformBuffer as GPUBuffer, 0, new Float32Array(projectionMatrix));
+
+        const modelViewMatrix = mat4.multiply(mat4.create(), camera.transform.localMatrix, mesh.transform.worldMatrix);
+        const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelViewMatrix));
+        const transformUniformData = new Float32Array(16 * 2);
+        transformUniformData.set(modelViewMatrix, 0);
+        transformUniformData.set(normalMatrix, 16);
+        this._device.queue.writeBuffer(transformUniformBuffer as GPUBuffer, 0, transformUniformData);
+
+        const materialUniformData = new Float32Array(4 * 3);
+        const phongMaterial = mesh.material as PhongMaterial;
+        materialUniformData.set(phongMaterial.diffuse, 0);
+        materialUniformData.set(phongMaterial.specular, 4);
+        materialUniformData.set([phongMaterial.shininess], 4 * 2);
+        this._device.queue.writeBuffer(materialUniformBuffer as GPUBuffer, 0, materialUniformData);
+
+        const lightUniformData = new Float32Array(4 * 3);
+        lightUniformData.set(light.transform.position, 0);
+        lightUniformData.set((light.light as PointLight).color, 4);
+        lightUniformData.set([(light.light as PointLight).intensity], 4 * 2);
+        this._device.queue.writeBuffer(lightUniformBuffer as GPUBuffer, 0, lightUniformData);
+
+        const positionBuffer = createBuffer(this._device, mesh.geometry.positions, GPUBufferUsage.VERTEX);
+        const normalBuffer = createBuffer(this._device, mesh.geometry.normals as Float32Array, GPUBufferUsage.VERTEX);
+        const uvBuffer = createBuffer(this._device, mesh.geometry.texCoords as Float32Array, GPUBufferUsage.VERTEX);
+        const indexBuffer = createBuffer(this._device, mesh.geometry.indices, GPUBufferUsage.INDEX);
+
+        passEncoder.setBindGroup(0, uniformBindGroup);
+        passEncoder.setVertexBuffer(0, positionBuffer);
+        passEncoder.setVertexBuffer(1, normalBuffer);
+        passEncoder.setVertexBuffer(2, uvBuffer);
+        passEncoder.setIndexBuffer(indexBuffer, "uint16");
+        passEncoder.drawIndexed(mesh.geometry.indices.length, 1, 0, 0, 0);
+
     }
 }

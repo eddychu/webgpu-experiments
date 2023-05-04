@@ -14,6 +14,12 @@ export default class Transform {
             quat.fromValues(0.0, 0.0, 0.0, 1.0), vec3.fromValues(1.0, 1.0, 1.0));
     }
 
+    public static translate(position: vec3): Transform {
+        const transform = new Transform();
+        transform.position = position;
+        return transform;
+    }
+
 
     public static lookAt(eye: vec3, target: vec3, up: vec3): Transform {
         const transform = new Transform();

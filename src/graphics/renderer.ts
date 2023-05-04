@@ -22,7 +22,6 @@ export default class Renderer {
     private _normalBuffer?: GPUBuffer;
     private _uvBuffer?: GPUBuffer;
     private _indexBuffer?: GPUBuffer;
-    private _cameraPositionBuffer?: GPUBuffer;
     private _viewUniformBuffer?: GPUBuffer;
     private _materialUniformBuffer?: GPUBuffer;
     private _transformUniformBuffer?: GPUBuffer;
@@ -67,106 +66,10 @@ export default class Renderer {
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
-        // this._cameraPositionBuffer = this._device.createBuffer({
-        //     size: 4 * 4,
-        //     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        // });
-
-
-        const uniformBindGroupLayout = this._device.createBindGroupLayout({
-            entries: [{
-                binding: 0,
-                visibility: GPUShaderStage.VERTEX,
-                buffer: {
-                    type: "uniform"
-                }
-            },
-            {
-                binding: 1,
-                visibility: GPUShaderStage.VERTEX,
-                buffer: {
-                    type: "uniform"
-                }
-            },
-            {
-                binding: 2,
-                visibility: GPUShaderStage.FRAGMENT,
-                buffer: {
-                    type: "uniform"
-                }
-            },
-            {
-                binding: 3,
-                visibility: GPUShaderStage.FRAGMENT,
-                buffer: {
-                    type: "uniform"
-                }
-            },
-                // {
-                //     binding: 4,
-                //     visibility: GPUShaderStage.FRAGMENT,
-                //     buffer: {
-                //         type: "uniform"
-                //     }
-                // },
-            ]
-        });
-
-
-        this._uniformBindGroup = this._device.createBindGroup({
-            layout: uniformBindGroupLayout,
-            entries: [{
-                binding: 0,
-                resource: {
-                    buffer: this._viewUniformBuffer
-                }
-            },
-            {
-                binding: 1,
-                resource: {
-                    buffer: this._transformUniformBuffer
-                }
-            },
-            {
-                binding: 2,
-                resource: {
-                    buffer: this._lightUniformBuffer
-                }
-            },
-            {
-                binding: 3,
-                resource: {
-                    buffer: this._materialUniformBuffer
-                }
-            },
-                // {
-                //     binding: 4,
-                //     resource: {
-                //         buffer: this._cameraPositionBuffer
-                //     }
-                // },
-            ]
-        });
-
-
-
-
-
-
-
-
-
-
         this._positionBuffer = createBuffer(this._device, geometry.positions, GPUBufferUsage.VERTEX);
         this._normalBuffer = createBuffer(this._device, geometry.normals as Float32Array, GPUBufferUsage.VERTEX);
         this._uvBuffer = createBuffer(this._device, geometry.texCoords as Float32Array, GPUBufferUsage.VERTEX);
         this._indexBuffer = createBuffer(this._device, geometry.indices as Uint16Array, GPUBufferUsage.INDEX);
-
-        const pipelineLayout = this._device.createPipelineLayout({
-            bindGroupLayouts: [
-                uniformBindGroupLayout,
-            ]
-        });
 
         this._depthTexture = this._device.createTexture({
             size: {
@@ -185,7 +88,7 @@ export default class Renderer {
         });
 
         this._mainPipeline = this._device.createRenderPipeline({
-            layout: pipelineLayout,
+            layout: 'auto',
             vertex: {
                 module: shader,
                 entryPoint: "vs_main",
@@ -229,6 +132,35 @@ export default class Renderer {
                 depthWriteEnabled: true,
                 depthCompare: "less",
             },
+        });
+
+        this._uniformBindGroup = this._device.createBindGroup({
+            layout: this._mainPipeline.getBindGroupLayout(0),
+            entries: [{
+                binding: 0,
+                resource: {
+                    buffer: this._viewUniformBuffer
+                }
+            },
+            {
+                binding: 1,
+                resource: {
+                    buffer: this._transformUniformBuffer
+                }
+            },
+            {
+                binding: 2,
+                resource: {
+                    buffer: this._lightUniformBuffer
+                }
+            },
+            {
+                binding: 3,
+                resource: {
+                    buffer: this._materialUniformBuffer
+                }
+            },
+            ]
         });
     }
 
@@ -309,7 +241,6 @@ export default class Renderer {
         passEncoder.setVertexBuffer(2, this._uvBuffer as GPUBuffer);
         passEncoder.setIndexBuffer(this._indexBuffer as GPUBuffer, "uint16");
         passEncoder.drawIndexed(mesh.geometry.indices.length, 1, 0, 0, 0);
-
         passEncoder.end();
         this._device.queue.submit([commandEncoder.finish()]);
     }

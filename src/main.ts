@@ -5,4 +5,4 @@ import experiment4 from "./experiments/004-light"
 import experiment5 from "./experiments/005-material"
 import experiment6 from "./experiments/006-scene"
 import experiment7 from "./experiments/007-renderer"
-experiment6();
+experiment7();

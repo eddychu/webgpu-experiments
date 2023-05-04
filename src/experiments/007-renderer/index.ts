@@ -2,7 +2,7 @@ import { vec3 } from "gl-matrix";
 import Cube from "../../geometry/cube";
 import Renderer from "../../graphics/renderer";
 import { PhongMaterial } from "../../materials";
-import Scene, { CameraNode, LightNode, MeshNode } from "../../scene";
+import { CameraNode, LightNode, MeshNode } from "../../scene";
 import { PointLight } from "../../lights";
 
 const main = async () => {
@@ -35,11 +35,17 @@ const main = async () => {
     const mesh = new MeshNode(cube, material);
     const light = new LightNode(
         new PointLight(
-            vec3.fromValues(0.0, 0.0, 5.0),
+            vec3.fromValues(0.0, 0.0, 1.0),
             vec3.fromValues(1.0, 1.0, 1.0),
             1.0)
     )
-    renderer.render(mesh, light, camera);
+
+    const render = () => {
+        renderer.render(mesh, light, camera);
+        requestAnimationFrame(render);
+    }
+
+    render();
 }
 
 

@@ -52,8 +52,7 @@ const main = async () => {
         100.0,
     );
     let view_matrix = camera.transform.localMatrix;
-    let projection_matrix = mat4.create();
-    camera.perspective(projection_matrix);
+    let projection_matrix = camera.projectionMatrix;
 
 
 
@@ -142,7 +141,6 @@ const main = async () => {
             }
         ]
     });
-
     const uniformBindGroup = device.createBindGroup({
         layout: uniformBindGroupLayout,
         entries: [
@@ -276,7 +274,9 @@ const main = async () => {
     window.addEventListener("resize", () => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
-        projection_matrix = mat4.perspective(mat4.create(), Math.PI / 4, canvas.width / canvas.height, 0.1, 100.0);
+        camera.setAspectRatio(canvas.width / canvas.height);
+        projection_matrix = camera.projectionMatrix;
+
         depthTexture = device.createTexture({
             size: {
                 width: canvas.width,

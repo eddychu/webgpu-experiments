@@ -1,6 +1,6 @@
 import { mat4, vec3 } from "gl-matrix";
 import Geometry from "../geometry";
-import Light from "../lights";
+import Light, { PointLight } from "../lights";
 import Material from "../materials";
 import Transform from "./transform";
 
@@ -68,6 +68,8 @@ export class LightNode extends SceneNode {
     constructor(light: Light) {
         super(SceneNodeType.Light);
         this.light = light;
+        this.transform = Transform.identity();
+        this.transform.position = light as PointLight ? (light as PointLight).position : vec3.create();
     }
 }
 
@@ -76,6 +78,7 @@ export class CameraNode extends SceneNode {
     public fov: number;
     public near: number;
     public far: number;
+    public projectionMatrix: mat4 = mat4.create();
     constructor(eye: vec3, target: vec3, up: vec3, aspectRatio: number, fov: number, near: number, far: number) {
         super(SceneNodeType.Camera);
         this.transform = Transform.lookAt(eye, target, up);
@@ -83,9 +86,11 @@ export class CameraNode extends SceneNode {
         this.fov = fov;
         this.near = near;
         this.far = far;
+        mat4.perspective(this.projectionMatrix, fov, aspectRatio, near, far);
     }
 
-    public perspective(out: mat4): mat4 {
-        return mat4.perspective(out, this.fov, this.aspectRatio, this.near, this.far);
+    public setAspectRatio(value: number) {
+        this.aspectRatio = value;
+        mat4.perspective(this.projectionMatrix, this.fov, this.aspectRatio, this.near, this.far);
     }
 }

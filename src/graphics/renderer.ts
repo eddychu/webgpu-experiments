@@ -1,6 +1,9 @@
+import { mat4 } from "gl-matrix";
 import Geometry from "../geometry";
 import Scene, { CameraNode, LightNode, MeshNode } from "../scene";
 import { createBuffer } from "./resource";
+import { PointLight } from "../lights";
+import { PhongMaterial } from "../materials";
 
 export default class Renderer {
     private _dom: HTMLCanvasElement;
@@ -25,11 +28,9 @@ export default class Renderer {
     private _transformUniformBuffer?: GPUBuffer;
     private _lightUniformBuffer?: GPUBuffer;
     private _initialized: boolean = false;
-    private _cameraPositionBindGroup?: GPUBindGroup;
-    private _viewUniformBindGroup?: GPUBindGroup;
-    private _materialBindGroup?: GPUBindGroup;
-    private _transformBindGroup?: GPUBindGroup;
-    private _lightBindGroup?: GPUBindGroup;
+    private _uniformBindGroup?: GPUBindGroup;
+    private _depthTexture?: GPUTexture;
+    private _depthTextureView?: GPUTextureView;
     constructor(dom: HTMLCanvasElement, device: GPUDevice) {
         this._dom = dom;
         this._ctx = this._dom.getContext("webgpu") as GPUCanvasContext;
@@ -44,139 +45,114 @@ export default class Renderer {
     private _init(mesh: MeshNode, light: LightNode, camera: CameraNode) {
         const geometry = mesh.geometry;
         const material = mesh.material;
-        const viewUniformBindGroupLayout = this._device.createBindGroupLayout({
-            entries: [{
-                binding: 0,
-                visibility: GPUShaderStage.VERTEX,
-                buffer: {
-                    type: "uniform"
-                }
-            }]
-        });
-
-        // a mat4 for view matrix
-        // a mat4 for projection matrix
+        // view_proj matrix
         this._viewUniformBuffer = this._device.createBuffer({
-            size: 4 * 16 * 2,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-
-        this._viewUniformBindGroup = this._device.createBindGroup({
-            layout: viewUniformBindGroupLayout,
-            entries: [{
-                binding: 0,
-                resource: {
-                    buffer: this._viewUniformBuffer
-                }
-            }]
-        });
-
-        const materialBindGroupLayout = this._device.createBindGroupLayout({
-            entries: [{
-                binding: 0,
-                visibility: GPUShaderStage.FRAGMENT,
-                buffer: {
-                    type: "uniform"
-                }
-            }]
-        });
-
-        this._materialUniformBuffer = this._device.createBuffer({
-            size: 4 * 4 * 3,
-            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
-        });
-
-        this._materialBindGroup = this._device.createBindGroup({
-            layout: materialBindGroupLayout,
-            entries: [{
-                binding: 0,
-                resource: {
-                    buffer: this._materialUniformBuffer
-                }
-            }]
-        });
-
-        const transformBindGroupLayout = this._device.createBindGroupLayout({
-            entries: [{
-                binding: 0,
-                visibility: GPUShaderStage.VERTEX,
-                buffer: {
-                    type: "uniform"
-                }
-            }]
-        });
-
-        // a mat4 for model matrix
-        // a mat4 for normal matrix
-
-        this._transformUniformBuffer = this._device.createBuffer({
             size: 4 * 16,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
-        this._transformBindGroup = this._device.createBindGroup({
-            layout: transformBindGroupLayout,
-            entries: [{
-                binding: 0,
-                resource: {
-                    buffer: this._transformUniformBuffer
-                }
-            }]
+        this._transformUniformBuffer = this._device.createBuffer({
+            size: 4 * 16 * 2,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
-
 
         this._lightUniformBuffer = this._device.createBuffer({
             size: 4 * 4 * 3,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
-        const lightBindGroupLayout = this._device.createBindGroupLayout({
-            entries: [{
-                binding: 0,
-                visibility: GPUShaderStage.FRAGMENT,
-                buffer: {
-                    type: "uniform"
-                }
-            }]
-        });
 
-        this._lightBindGroup = this._device.createBindGroup({
-            layout: lightBindGroupLayout,
-            entries: [{
-                binding: 0,
-                resource: {
-                    buffer: this._lightUniformBuffer
-                }
-            }]
-        });
-
-
-
-
-        this._cameraPositionBuffer = this._device.createBuffer({
-            size: 4 * 3,
+        this._materialUniformBuffer = this._device.createBuffer({
+            size: 4 * 4 * 3,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
-        const cameraPostionBindGroupLayout = this._device.createBindGroupLayout({
+        this._cameraPositionBuffer = this._device.createBuffer({
+            size: 4 * 4,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+
+        const uniformBindGroupLayout = this._device.createBindGroupLayout({
             entries: [{
                 binding: 0,
                 visibility: GPUShaderStage.VERTEX,
                 buffer: {
                     type: "uniform"
                 }
-            }]
+            },
+            {
+                binding: 1,
+                visibility: GPUShaderStage.VERTEX,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            {
+                binding: 2,
+                visibility: GPUShaderStage.FRAGMENT,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            {
+                binding: 3,
+                visibility: GPUShaderStage.FRAGMENT,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            {
+                binding: 4,
+                visibility: GPUShaderStage.FRAGMENT,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            ]
         });
 
-        this._cameraPositionBindGroup = this._device.createBindGroup({
-            layout: cameraPostionBindGroupLayout,
+
+        this._uniformBindGroup = this._device.createBindGroup({
+            layout: uniformBindGroupLayout,
             entries: [{
                 binding: 0,
                 resource: {
+                    buffer: this._viewUniformBuffer
+                }
+            },
+            {
+                binding: 1,
+                resource: {
+                    buffer: this._transformUniformBuffer
+                }
+            },
+            {
+                binding: 2,
+                resource: {
+                    buffer: this._lightUniformBuffer
+                }
+            },
+            {
+                binding: 3,
+                resource: {
+                    buffer: this._materialUniformBuffer
+                }
+            },
+            {
+                binding: 4,
+                resource: {
                     buffer: this._cameraPositionBuffer
                 }
-            }]
+            },
+            ]
         });
+
+
+
+
+
+
 
 
 
@@ -188,13 +164,21 @@ export default class Renderer {
 
         const pipelineLayout = this._device.createPipelineLayout({
             bindGroupLayouts: [
-                viewUniformBindGroupLayout,
-                transformBindGroupLayout,
-                lightBindGroupLayout,
-                materialBindGroupLayout,
-                cameraPostionBindGroupLayout
+                uniformBindGroupLayout,
             ]
         });
+
+        this._depthTexture = this._device.createTexture({
+            size: {
+                width: this._ctx.canvas.width,
+                height: this._ctx.canvas.height,
+                depthOrArrayLayers: 1
+            },
+            format: "depth24plus-stencil8",
+            usage: GPUTextureUsage.RENDER_ATTACHMENT
+        });
+
+        this._depthTextureView = this._depthTexture.createView();
 
         const shader = this._device.createShaderModule({
             code: material.shader
@@ -204,7 +188,7 @@ export default class Renderer {
             layout: pipelineLayout,
             vertex: {
                 module: shader,
-                entryPoint: "vertex_main",
+                entryPoint: "vs_main",
                 buffers: [{
                     arrayStride: 4 * 3,
                     attributes: [{
@@ -230,21 +214,64 @@ export default class Renderer {
             },
             fragment: {
                 module: shader,
-                entryPoint: "fragment_main",
+                entryPoint: "fs_main",
                 targets: [{
                     format: "bgra8unorm"
                 }]
             },
             primitive: {
                 topology: "triangle-list",
-                cullMode: "back"
-            }
+                cullMode: "back",
+                frontFace: "ccw"
+            },
+            depthStencil: {
+                format: "depth24plus-stencil8",
+                depthWriteEnabled: true,
+                depthCompare: "less",
+            },
         });
+    }
+
+    public update(mesh: MeshNode, light: LightNode, camera: CameraNode) {
+        const viewMatrix = camera.transform.localMatrix;
+        const projectionMatrix = camera.projectionMatrix;
+        const viewProjectionMatrix = mat4.multiply(mat4.create(), projectionMatrix, viewMatrix);
+        console.log(viewProjectionMatrix as Float32Array)
+
+        this._device.queue.writeBuffer(this._viewUniformBuffer as GPUBuffer, 0, new Float32Array(viewProjectionMatrix));
+
+        const modelMatrix = mesh.transform.worldMatrix;
+        const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelMatrix));
+        const transformUniformData = new Float32Array(16 * 2);
+        transformUniformData.set(modelMatrix, 0);
+        transformUniformData.set(normalMatrix, 16);
+        this._device.queue.writeBuffer(this._transformUniformBuffer as GPUBuffer, 0, transformUniformData);
+
+        const lightUniformData = new Float32Array(4 * 3);
+        lightUniformData.set(light.transform.position, 0);
+        lightUniformData.set((light.light as PointLight).color, 4);
+        lightUniformData.set([(light.light as PointLight).intensity], 4 * 2);
+
+        this._device.queue.writeBuffer(this._lightUniformBuffer as GPUBuffer, 0, lightUniformData);
+
+
+        this._device.queue.writeBuffer(this._cameraPositionBuffer as GPUBuffer, 0, new Float32Array(camera.transform.position));
+
+        const materialUniformData = new Float32Array(4 * 3);
+        const phongMaterial = mesh.material as PhongMaterial;
+        materialUniformData.set(phongMaterial.diffuse, 0);
+        materialUniformData.set(phongMaterial.specular, 4);
+        materialUniformData.set([phongMaterial.shininess], 4 * 2);
+
+        this._device.queue.writeBuffer(this._materialUniformBuffer as GPUBuffer, 0, materialUniformData);
+
+
     }
 
     public render(mesh: MeshNode, light: LightNode, camera: CameraNode) {
         if (!this._initialized) {
             this._init(mesh, light, camera);
+            this.update(mesh, light, camera);
             this._initialized = true;
         }
         const commandEncoder = this._device.createCommandEncoder();
@@ -252,19 +279,25 @@ export default class Renderer {
         const renderPassDescriptor: GPURenderPassDescriptor = {
             colorAttachments: [{
                 view: textureView,
-                clearValue: { r: 1.0, g: 0.0, b: 0.0, a: 1.0 },
+                clearValue: { r: 0.0, g: 0.0, b: 0.0, a: 1.0 },
                 storeOp: "store",
                 loadOp: "clear"
-            }]
+            }],
+            depthStencilAttachment: {
+                view: this._depthTextureView as GPUTextureView,
+                depthClearValue: 1.0,
+                depthLoadOp: "clear",
+                depthStoreOp: "store",
+                stencilClearValue: 0,
+                stencilLoadOp: "clear",
+                stencilStoreOp: "store"
+            }
         };
 
         const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
+
         passEncoder.setPipeline(this._mainPipeline as GPURenderPipeline);
-        passEncoder.setBindGroup(0, this._viewUniformBindGroup as GPUBindGroup);
-        passEncoder.setBindGroup(1, this._transformBindGroup as GPUBindGroup);
-        passEncoder.setBindGroup(2, this._lightBindGroup as GPUBindGroup);
-        passEncoder.setBindGroup(3, this._materialBindGroup as GPUBindGroup);
-        passEncoder.setBindGroup(4, this._cameraPositionBindGroup as GPUBindGroup);
+        passEncoder.setBindGroup(0, this._uniformBindGroup as GPUBindGroup);
         passEncoder.setVertexBuffer(0, this._positionBuffer as GPUBuffer);
         passEncoder.setVertexBuffer(1, this._normalBuffer as GPUBuffer);
         passEncoder.setVertexBuffer(2, this._uvBuffer as GPUBuffer);

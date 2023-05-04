@@ -17,3 +17,23 @@ export const createBuffer = (device: GPUDevice, arr: Float32Array | Uint16Array,
     return buffer;
 };
 
+export const createBindGroupLayout = (device: GPUDevice, entries: GPUBindGroupLayoutEntry[]) => {
+    return device.createBindGroupLayout({
+        entries
+    });
+}
+
+export const createBindGroup = (device: GPUDevice, layout: GPUBindGroupLayout, entries: GPUBindGroupEntry[]) => {
+    return device.createBindGroup({
+        layout,
+        entries
+    });
+}
+
+
+export const createPipelineLayout = (device: GPUDevice, bindGroupLayouts: GPUBindGroupLayout[]) => {
+    return device.createPipelineLayout({
+        bindGroupLayouts
+    });
+}
+

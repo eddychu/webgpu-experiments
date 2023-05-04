@@ -5,6 +5,7 @@ import shaderCode from "./shader.wgsl?raw";
 import { PointLight } from "../../lights";
 import { PhongMaterial } from "../../materials";
 import { CameraNode, MeshNode } from "../../scene";
+import Transform from "../../scene/transform";
 const main = async () => {
     const canvas = document.querySelector('#mycanvas') as HTMLCanvasElement;
     if (navigator.gpu === undefined) {
@@ -42,15 +43,16 @@ const main = async () => {
     const indexBuffer = createBuffer(device, cube.indices, GPUBufferUsage.INDEX);
 
     const camera = new CameraNode(
+        vec3.fromValues(0, 0, 5),
+        vec3.fromValues(0, 0, 0),
+        vec3.fromValues(0, 1, 0),
         canvas.width / canvas.height,
         Math.PI / 4,
         0.1,
         100.0,
     );
-    camera.transform.position = vec3.fromValues(0, 0, 5);
-    let view_matrix = mat4.create();
+    let view_matrix = camera.transform.localMatrix;
     let projection_matrix = mat4.create();
-    camera.lookAt(vec3.fromValues(0.0, 0.0, 0.0), view_matrix);
     camera.perspective(projection_matrix);
 
 
@@ -332,8 +334,10 @@ const main = async () => {
             let new_y = Math.cos(phi) * radius;
             let new_z = sinPhiRadius * Math.cos(theta);
 
-            camera.transform.position = vec3.fromValues(new_x, new_y, new_z);
-            view_matrix = camera.lookAt(vec3.fromValues(0, 0, 0), view_matrix);
+            const newPosition = vec3.fromValues(new_x, new_y, new_z);
+            const newTransform = Transform.lookAt(newPosition, vec3.fromValues(0.0, 0.0, 0.0), vec3.fromValues(0.0, 1.0, 0.0));
+            camera.transform = newTransform;
+            view_matrix = camera.transform.localMatrix;
             mat4.multiply(model_view, view_matrix, mesh.transform.worldMatrix);
             mat4.invert(normal_matrix, model_view);
             mat4.transpose(normal_matrix, normal_matrix);

@@ -1,4 +1,4 @@
-import { mat4, quat, vec3 } from "gl-matrix";
+import { mat3, mat4, quat, vec3 } from "gl-matrix";
 
 export default class Transform {
     private _position: vec3;
@@ -12,6 +12,16 @@ export default class Transform {
     public static identity(): Transform {
         return new Transform(vec3.fromValues(0.0, 0.0, 0.0),
             quat.fromValues(0.0, 0.0, 0.0, 1.0), vec3.fromValues(1.0, 1.0, 1.0));
+    }
+
+
+    public static lookAt(eye: vec3, target: vec3, up: vec3): Transform {
+        const transform = new Transform();
+        transform.position = eye;
+        mat4.lookAt(transform.localMatrix, eye, target, up);
+        mat4.invert(transform.worldMatrix, transform.localMatrix);
+        transform._rotation = quat.fromMat3(quat.create(), mat3.fromMat4(mat3.create(), transform.worldMatrix));
+        return transform;
     }
 
     constructor(position: vec3 = vec3.fromValues(0.0, 0.0, 0.0),
@@ -76,7 +86,4 @@ export default class Transform {
         return vec3.fromValues(forwardX, forwardY, forwardZ);
     }
 
-    public lookat(target: vec3, out: mat4): mat4 {
-        return mat4.lookAt(out, this.position, target, this.up);
-    }
 }

@@ -1,14 +1,21 @@
 import { vec3 } from "gl-matrix";
+import phongShader from "../shaders/phong.wgsl?raw";
 
 export default class Material {
+    public shader: string;
+    constructor(shader: string) {
+        this.shader = shader;
+    }
 }
 
+
 export class PhongMaterial extends Material {
+
     public diffuse: vec3;
     public specular: vec3;
     public shininess: number;
     constructor(diffuse: vec3, specular: vec3, shininess: number) {
-        super();
+        super(phongShader);
         this.diffuse = diffuse;
         this.specular = specular;
         this.shininess = shininess;

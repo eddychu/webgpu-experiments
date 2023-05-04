@@ -1,7 +1,8 @@
-import { mat3, mat4 } from "gl-matrix";
+import { mat4 } from "gl-matrix";
 import Cube from "../../geometry/cube";
 import { createBuffer } from "../../graphics/resource";
 import shaderCode from "./shader.wgsl?raw";
+import { PointLight } from "../../lights";
 const main = async () => {
     const canvas = document.querySelector('#mycanvas') as HTMLCanvasElement;
     if (navigator.gpu === undefined) {
@@ -33,6 +34,12 @@ const main = async () => {
     let view_proj = mat4.multiply(mat4.create(), projection_matrix, view_matrix);
     let model = mat4.create();
     let normalMatrix = mat4.create();
+
+    let light = new PointLight([0, 0, 5], [1, 1, 1], 1.0);
+
+    console.log(light.toFloat32Array());
+
+
     const viewProjUniformBuffer = device.createBuffer({
         size: 4 * 16,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
@@ -48,7 +55,11 @@ const main = async () => {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
 
-
+    const lightUniformBuffer = device.createBuffer({
+        // one vec3 for position, one padding,  one vec3 for color, one padding,  one float for intensity
+        size: 4 * 4 * 3,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
 
     const uniformBindGroupLayout = device.createBindGroupLayout({
         entries: [
@@ -69,6 +80,13 @@ const main = async () => {
             {
                 binding: 2,
                 visibility: GPUShaderStage.VERTEX,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            {
+                binding: 3,
+                visibility: GPUShaderStage.FRAGMENT,
                 buffer: {
                     type: "uniform"
                 }
@@ -95,6 +113,12 @@ const main = async () => {
                 binding: 2,
                 resource: {
                     buffer: normalUniformBuffer
+                }
+            },
+            {
+                binding: 3,
+                resource: {
+                    buffer: lightUniformBuffer
                 }
             }
         ]
@@ -223,6 +247,7 @@ const main = async () => {
         normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), model));
         device.queue.writeBuffer(normalUniformBuffer, 0, new Float32Array(normalMatrix));
 
+        device.queue.writeBuffer(lightUniformBuffer, 0, light.toFloat32Array());
 
         const commandEncoder = device.createCommandEncoder();
         const textureView = ctx.getCurrentTexture().createView() as GPUTextureView;

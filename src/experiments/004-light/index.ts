@@ -1,4 +1,4 @@
-import { mat4 } from "gl-matrix";
+import { mat4, vec3 } from "gl-matrix";
 import Cube from "../../geometry/cube";
 import { createBuffer } from "../../graphics/resource";
 import shaderCode from "./shader.wgsl?raw";
@@ -217,11 +217,6 @@ const main = async () => {
         canvas.height = window.innerHeight;
         projection_matrix = mat4.perspective(mat4.create(), Math.PI / 4, canvas.width / canvas.height, 0.1, 100.0);
         view_proj = mat4.multiply(mat4.create(), projection_matrix, view_matrix);
-        // ctx.configure({
-        //     device: device,
-        //     format: swapChainFormat,
-        //     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
-        // });
         depthTexture = device.createTexture({
             size: {
                 width: canvas.width,
@@ -239,12 +234,19 @@ const main = async () => {
     const render = (dt: number) => {
         const viewProjUniformData = new Float32Array(view_proj);
         device.queue.writeBuffer(viewProjUniformBuffer, 0, viewProjUniformData);
-        model = mat4.rotateY(model, model, 0.05);
+        const now = performance.now() / 1000;
+        model = mat4.rotate(
+            model,
+            model,
+            1.0 * 0.05,
+            vec3.fromValues(Math.sin(now), Math.cos(now), 0),
+        );
+
 
         const modelUniformData = new Float32Array(model);
         device.queue.writeBuffer(modelUniformBuffer, 0, modelUniformData);
 
-        normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), model));
+        normalMatrix = mat4.transpose(normalMatrix, mat4.invert(normalMatrix, model));
         device.queue.writeBuffer(normalUniformBuffer, 0, new Float32Array(normalMatrix));
 
         device.queue.writeBuffer(lightUniformBuffer, 0, light.toFloat32Array());

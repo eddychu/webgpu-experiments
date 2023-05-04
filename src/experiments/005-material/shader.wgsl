@@ -24,12 +24,27 @@ struct Light {
     intensity: f32,
 };
 
+struct PhongMaterial {
+    diffuse: vec4<f32>,
+    specular: vec4<f32>,
+    shininess: f32,
+};
+
 @group(0) @binding(3) var<uniform> u_light: Light;
+@group(0) @binding(4) var<uniform> u_material: PhongMaterial;
+@group(0) @binding(5) var<uniform> u_camera_pos: vec4<f32>;
 
 @fragment
 fn fs_main(@location(0) in_pos: vec3<f32>, @location(1) in_normal: vec3<f32>) -> @location(0) vec4<f32> {
     let light_dir = normalize(u_light.position.xyz - in_pos);
-    let light_intensity = max(dot(in_normal, light_dir), 0.0) * u_light.intensity / length(u_light.position.xyz - in_pos);
-    let in_color = u_light.color.xyz * light_intensity;
-    return vec4<f32>(in_normal, 1.0);
+    let view_dir = normalize(u_camera_pos.xyz - in_pos);
+    let half_dir = normalize(light_dir + view_dir);
+    let diffuse = max(dot(in_normal, light_dir), 0.0);
+    let specular = pow(max(dot(in_normal, half_dir), 0.0), u_material.shininess);
+    let ambient = 0.1;
+    let light_color = u_light.color.xyz * u_light.intensity;
+    let diffuse_color = u_material.diffuse.xyz * light_color * diffuse;
+    let specular_color = u_material.specular.xyz * light_color * specular;
+    let ambient_color = light_color * ambient;
+    return vec4<f32>(ambient_color + diffuse_color + specular_color, 1.0);
 }

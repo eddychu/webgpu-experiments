@@ -1,7 +1,9 @@
-import { mat3, mat4, vec3 } from "gl-matrix";
+import { mat4, vec3 } from "gl-matrix";
 import Cube from "../../geometry/cube";
 import { createBuffer } from "../../graphics/resource";
 import shaderCode from "./shader.wgsl?raw";
+import { PointLight } from "../../lights";
+import { PhongMaterial } from "../../materials";
 const main = async () => {
     const canvas = document.querySelector('#mycanvas') as HTMLCanvasElement;
     if (navigator.gpu === undefined) {
@@ -21,6 +23,11 @@ const main = async () => {
     });
 
     const cube = new Cube(1.0);
+    const phongMaterial = new PhongMaterial(
+        [0.5, 0.5, 0.9],
+        [1.0, 1.0, 1.0],
+        64.0);
+
 
     const positionBuffer = createBuffer(device, cube.positions, GPUBufferUsage.VERTEX);
     const normalBuffer = createBuffer(device, cube.normals as Float32Array, GPUBufferUsage.VERTEX);
@@ -33,6 +40,9 @@ const main = async () => {
     let view_proj = mat4.multiply(mat4.create(), projection_matrix, view_matrix);
     let model = mat4.create();
     let normalMatrix = mat4.create();
+
+    let light = new PointLight([0, 0, 5], [1, 1, 1], 1.0);
+
     const viewProjUniformBuffer = device.createBuffer({
         size: 4 * 16,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
@@ -48,7 +58,21 @@ const main = async () => {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
 
+    const lightUniformBuffer = device.createBuffer({
+        // one vec3 for position, one padding,  one vec3 for color, one padding,  one float for intensity
+        size: 4 * 4 * 3,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
 
+    const materialUniformBuffer = device.createBuffer({
+        size: 4 * 4 * 3,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+
+    const cameraPositionUniformBuffer = device.createBuffer({
+        size: 4 * 4,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
 
     const uniformBindGroupLayout = device.createBindGroupLayout({
         entries: [
@@ -69,6 +93,27 @@ const main = async () => {
             {
                 binding: 2,
                 visibility: GPUShaderStage.VERTEX,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            {
+                binding: 3,
+                visibility: GPUShaderStage.FRAGMENT,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            {
+                binding: 4,
+                visibility: GPUShaderStage.FRAGMENT,
+                buffer: {
+                    type: "uniform"
+                }
+            },
+            {
+                binding: 5,
+                visibility: GPUShaderStage.FRAGMENT,
                 buffer: {
                     type: "uniform"
                 }
@@ -95,6 +140,24 @@ const main = async () => {
                 binding: 2,
                 resource: {
                     buffer: normalUniformBuffer
+                }
+            },
+            {
+                binding: 3,
+                resource: {
+                    buffer: lightUniformBuffer
+                }
+            },
+            {
+                binding: 4,
+                resource: {
+                    buffer: materialUniformBuffer
+                }
+            },
+            {
+                binding: 5,
+                resource: {
+                    buffer: cameraPositionUniformBuffer
                 }
             }
         ]
@@ -193,11 +256,6 @@ const main = async () => {
         canvas.height = window.innerHeight;
         projection_matrix = mat4.perspective(mat4.create(), Math.PI / 4, canvas.width / canvas.height, 0.1, 100.0);
         view_proj = mat4.multiply(mat4.create(), projection_matrix, view_matrix);
-        // ctx.configure({
-        //     device: device,
-        //     format: swapChainFormat,
-        //     usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
-        // });
         depthTexture = device.createTexture({
             size: {
                 width: canvas.width,
@@ -216,19 +274,26 @@ const main = async () => {
         const viewProjUniformData = new Float32Array(view_proj);
         device.queue.writeBuffer(viewProjUniformBuffer, 0, viewProjUniformData);
         const now = performance.now() / 1000;
-        mat4.rotate(
+        model = mat4.rotate(
             model,
             model,
-            0.02,
+            1.0 * 0.05,
             vec3.fromValues(Math.sin(now), Math.cos(now), 0),
         );
+
+        const cameraPosData = new Float32Array([view_proj[12], view_proj[13], view_proj[14], 0.0]);
+        device.queue.writeBuffer(cameraPositionUniformBuffer, 0, cameraPosData);
+
 
         const modelUniformData = new Float32Array(model);
         device.queue.writeBuffer(modelUniformBuffer, 0, modelUniformData);
 
-        normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), model));
+        normalMatrix = mat4.transpose(normalMatrix, mat4.invert(normalMatrix, model));
         device.queue.writeBuffer(normalUniformBuffer, 0, new Float32Array(normalMatrix));
 
+        device.queue.writeBuffer(lightUniformBuffer, 0, light.toFloat32Array());
+
+        device.queue.writeBuffer(materialUniformBuffer, 0, phongMaterial.toFloat32Array());
 
         const commandEncoder = device.createCommandEncoder();
         const textureView = ctx.getCurrentTexture().createView() as GPUTextureView;

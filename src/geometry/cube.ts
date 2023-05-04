@@ -32,6 +32,7 @@ export default class Cube extends Geometry {
             // Bottom
             0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0,
             // Top
+            0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0
         ]);
         const indices = new Uint16Array([
             0, 1, 2, 0, 2, 3,

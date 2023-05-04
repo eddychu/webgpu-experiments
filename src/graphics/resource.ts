@@ -1,10 +1,11 @@
 export const createBuffer = (device: GPUDevice, arr: Float32Array | Uint16Array, usage: number) => {
-    // 📏 Align to 4 bytes (thanks @chrimsonite)
     let desc = {
         size: (arr.byteLength + 3) & ~3,
         usage,
         mappedAtCreation: true
     };
+
+    console.log(desc);
     let buffer = device.createBuffer(desc);
 
     const writeArray =
@@ -16,9 +17,3 @@ export const createBuffer = (device: GPUDevice, arr: Float32Array | Uint16Array,
     return buffer;
 };
 
-export const createUniform = (device: GPUDevice, size: number, usage: number) => {
-    return device.createBuffer({
-        size,
-        usage: GPUBufferUsage.UNIFORM | usage
-    });
-}

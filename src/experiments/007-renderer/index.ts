@@ -2,7 +2,7 @@ import { vec3 } from "gl-matrix";
 import Cube from "../../geometry/cube";
 import Renderer from "../../graphics/renderer";
 import { PhongMaterial } from "../../materials";
-import Scene, { CameraNode, LightNode, MeshNode } from "../../scene";
+import Scene, { CameraNode, InstancedMeshNode, LightNode, MeshNode } from "../../scene";
 import { PointLight } from "../../lights";
 import Transform from "../../scene/transform";
 
@@ -51,16 +51,15 @@ const main = async () => {
 
     const scene = new Scene();
     scene.camera = camera;
-    for (let i = 0; i < 10; i++) {
-        for (let j = 0; j < 5; j++) {
-            const newMesh = new MeshNode(cube, material);
-            const newTransform = Transform.translate(vec3.fromValues(i - 5, j - 2, 0.0));
-            newTransform.scale = vec3.fromValues(0.5, 0.5, 0.5);
-            newMesh.transform = newTransform;
-            scene.addNode(newMesh);
+    let instancedMesh = new InstancedMeshNode(cube, material, 200);
+    for (let i = 0; i < 10; i += 0.2) {
+        for (let j = 0; j < 10; j += 0.2) {
+            const newTransform = Transform.translate(vec3.fromValues(i - 5, j - 5, 0.0));
+            newTransform.scale = vec3.fromValues(0.1, 0.1, 0.1);
+            instancedMesh.instanceTransforms.push(newTransform);
         }
     }
-
+    scene.addNode(instancedMesh);
 
     scene.addNode(light);
 

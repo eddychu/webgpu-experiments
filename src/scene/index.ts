@@ -15,28 +15,17 @@ export default class Scene {
         this.nodes.push(node);
     }
 
-    public get lights(): LightNode[] {
-        return this.getNodesOfType<LightNode>(SceneNodeType.Light);
+    public get lights(): Array<LightNode> {
+        return this.nodes.filter((node) => node.type === SceneNodeType.Light) as Array<LightNode>;
     }
 
-    public get meshes(): MeshNode[] {
-        return this.getNodesOfType<MeshNode>(SceneNodeType.Mesh);
-    }
-
-    public getNodesOfType<T extends SceneNode>(type: SceneNodeType): T[] {
-        const children = this.nodes;
-        const res: T[] = [];
-        for (let i = 0; i < children.length; i++) {
-            const child = children[i];
-            if (child.type === type) {
-                res.push(child as T);
-            }
-        }
-        return res;
+    public get drawables(): Array<MeshNode | InstancedMeshNode> {
+        return this.nodes.filter((node) => node.type === SceneNodeType.Mesh || node.type === SceneNodeType.InstancedMesh) as Array<MeshNode | InstancedMeshNode>;
     }
 }
 
 enum SceneNodeType {
+    InstancedMesh,
     Mesh,
     Light,
     Camera
@@ -61,6 +50,19 @@ export class MeshNode extends SceneNode {
         super(SceneNodeType.Mesh);
         this.geometry = geometry;
         this.material = material;
+    }
+}
+
+export class InstancedMeshNode extends SceneNode {
+    public geometry: Geometry;
+    public material: Material;
+    public instanceCount: number;
+    public instanceTransforms: Transform[] = [];
+    constructor(geometry: Geometry, material: Material, instanceCount: number) {
+        super(SceneNodeType.InstancedMesh);
+        this.geometry = geometry;
+        this.material = material;
+        this.instanceCount = instanceCount;
     }
 }
 

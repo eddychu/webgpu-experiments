@@ -1,6 +1,6 @@
 import { mat4 } from "gl-matrix";
 import Geometry from "../geometry";
-import Scene, { CameraNode, LightNode, MeshNode } from "../scene";
+import Scene, { CameraNode, InstancedMeshNode, LightNode, MeshNode } from "../scene";
 import { createBuffer } from "./resource";
 import { PointLight } from "../lights";
 import { PhongMaterial } from "../materials";
@@ -126,8 +126,8 @@ export default class Renderer {
 
 
 
-        for (const mesh of scene.meshes) {
-            this.renderObject(mesh, camera, light, passEncoder);
+        for (const drawable of scene.drawables) {
+            this.renderObject(drawable, camera, light, passEncoder);
         }
 
         passEncoder.end();
@@ -145,21 +145,20 @@ export default class Renderer {
             usage: GPUTextureUsage.RENDER_ATTACHMENT
         });
         this._depthTextureView = this._depthTexture.createView();
-        // this._ctx.configure({
-        //     device: this._device,
-        //     format: this._swapchainFormat,
-        // });
     }
 
-    public renderObject(mesh: MeshNode, camera: CameraNode, light: LightNode, passEncoder: GPURenderPassEncoder) {
+    public renderObject(drawable: MeshNode | InstancedMeshNode, camera: CameraNode, light: LightNode, passEncoder: GPURenderPassEncoder) {
 
         const viewUniformBuffer = this._device.createBuffer({
             size: 4 * 16,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
+        const transformUniformSize = drawable instanceof InstancedMeshNode ? 4 * 16 * 2 * drawable.instanceCount : 4 * 16 * 2;
+
+
         const transformUniformBuffer = this._device.createBuffer({
-            size: 4 * 16 * 2,
+            size: transformUniformSize,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
@@ -205,16 +204,26 @@ export default class Renderer {
         });
         const projectionMatrix = camera.projectionMatrix;
         this._device.queue.writeBuffer(viewUniformBuffer as GPUBuffer, 0, new Float32Array(projectionMatrix));
+        const transformUniformData = new Float32Array(transformUniformSize / 4);
+        if (drawable instanceof InstancedMeshNode) {
+            for (let i = 0; i < drawable.instanceCount; i++) {
+                const modelViewMatrix = mat4.multiply(mat4.create(), camera.transform.localMatrix, drawable.instanceTransforms[i].worldMatrix);
+                const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelViewMatrix));
+                transformUniformData.set(modelViewMatrix, 0 + i * 32);
+                transformUniformData.set(normalMatrix, 16 + i * 32);
+            }
+        } else {
+            const modelViewMatrix = mat4.multiply(mat4.create(), camera.transform.localMatrix, drawable.transform.worldMatrix);
+            const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelViewMatrix));
 
-        const modelViewMatrix = mat4.multiply(mat4.create(), camera.transform.localMatrix, mesh.transform.worldMatrix);
-        const normalMatrix = mat4.transpose(mat4.create(), mat4.invert(mat4.create(), modelViewMatrix));
-        const transformUniformData = new Float32Array(16 * 2);
-        transformUniformData.set(modelViewMatrix, 0);
-        transformUniformData.set(normalMatrix, 16);
+            transformUniformData.set(modelViewMatrix, 0);
+            transformUniformData.set(normalMatrix, 16);
+        }
+
         this._device.queue.writeBuffer(transformUniformBuffer as GPUBuffer, 0, transformUniformData);
 
         const materialUniformData = new Float32Array(4 * 3);
-        const phongMaterial = mesh.material as PhongMaterial;
+        const phongMaterial = drawable.material as PhongMaterial;
         materialUniformData.set(phongMaterial.diffuse, 0);
         materialUniformData.set(phongMaterial.specular, 4);
         materialUniformData.set([phongMaterial.shininess], 4 * 2);
@@ -226,17 +235,18 @@ export default class Renderer {
         lightUniformData.set([(light.light as PointLight).intensity], 4 * 2);
         this._device.queue.writeBuffer(lightUniformBuffer as GPUBuffer, 0, lightUniformData);
 
-        const positionBuffer = createBuffer(this._device, mesh.geometry.positions, GPUBufferUsage.VERTEX);
-        const normalBuffer = createBuffer(this._device, mesh.geometry.normals as Float32Array, GPUBufferUsage.VERTEX);
-        const uvBuffer = createBuffer(this._device, mesh.geometry.texCoords as Float32Array, GPUBufferUsage.VERTEX);
-        const indexBuffer = createBuffer(this._device, mesh.geometry.indices, GPUBufferUsage.INDEX);
+        const positionBuffer = createBuffer(this._device, drawable.geometry.positions, GPUBufferUsage.VERTEX);
+        const normalBuffer = createBuffer(this._device, drawable.geometry.normals as Float32Array, GPUBufferUsage.VERTEX);
+        const uvBuffer = createBuffer(this._device, drawable.geometry.texCoords as Float32Array, GPUBufferUsage.VERTEX);
+        const indexBuffer = createBuffer(this._device, drawable.geometry.indices, GPUBufferUsage.INDEX);
 
         passEncoder.setBindGroup(0, uniformBindGroup);
         passEncoder.setVertexBuffer(0, positionBuffer);
         passEncoder.setVertexBuffer(1, normalBuffer);
         passEncoder.setVertexBuffer(2, uvBuffer);
         passEncoder.setIndexBuffer(indexBuffer, "uint16");
-        passEncoder.drawIndexed(mesh.geometry.indices.length, 1, 0, 0, 0);
+        const instanceCount = drawable instanceof InstancedMeshNode ? drawable.instanceCount : 1;
+        passEncoder.drawIndexed(drawable.geometry.indices.length, instanceCount, 0, 0, 0);
 
     }
 }

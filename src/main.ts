@@ -6,4 +6,6 @@ import experiment5 from "./experiments/005-material"
 import experiment6 from "./experiments/006-scene"
 import experiment7 from "./experiments/007-renderer"
 import experiment8 from "./experiments/008-instanced"
-experiment8();
+import experiment9 from "./experiments/009-texture"
+import experiment10 from "./experiments/010-skybox"
+experiment10();

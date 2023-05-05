@@ -36,3 +36,10 @@ export const createPipelineLayout = (device: GPUDevice, bindGroupLayouts: GPUBin
     });
 }
 
+// export const createTexture = (device: GPUDevice, size: GPUExtent3DStrict, format: GPUTextureFormat, usage: number) => {
+//     return device.createTexture({
+//         size,
+//         format,
+//         usage
+//     });
+// }

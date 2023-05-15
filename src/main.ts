@@ -8,4 +8,5 @@ import experiment7 from "./experiments/007-renderer"
 import experiment8 from "./experiments/008-instanced"
 import experiment9 from "./experiments/009-texture"
 import experiment10 from "./experiments/010-skybox"
-experiment10();
+import experiment11 from "./experiments/011-shadowmap"
+experiment11();

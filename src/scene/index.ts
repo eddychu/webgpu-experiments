@@ -4,6 +4,8 @@ import Light, { PointLight } from "../lights";
 import Material from "../materials";
 import Transform from "./transform";
 
+
+
 export default class Scene {
     public camera?: CameraNode;
     public nodes: SceneNode[] = [];

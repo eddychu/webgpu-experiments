@@ -50,10 +50,6 @@ const main = async () => {
 
 
 
-
-
-
-
     const shaderModule = device.createShaderModule({
         code: shaderCode
     });

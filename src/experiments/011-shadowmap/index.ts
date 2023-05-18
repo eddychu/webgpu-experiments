@@ -1,38 +1,27 @@
-import { mat3, mat4, vec3 } from "gl-matrix";
+import { mat4, vec3 } from "gl-matrix";
 import Cube from "../../geometry/cube";
-import { createBuffer } from "../../graphics/resource";
+import { createGeometryBuffer } from "../../graphics/resource";
 import shaderCode from "./shader.wgsl?raw";
-import Plane from "../../geometry/plane";
-const main = async () => {
-    const canvas = document.querySelector('#mycanvas') as HTMLCanvasElement;
-    if (navigator.gpu === undefined) {
-        console.error("WebGPU not supported");
-        return;
-    }
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    const adapter = await navigator.gpu.requestAdapter() as GPUAdapter;
-    const ctx = canvas.getContext("webgpu") as GPUCanvasContext;
-    const device = await adapter.requestDevice() as GPUDevice;
-    const swapChainFormat = navigator.gpu.getPreferredCanvasFormat();
-    ctx.configure({
-        device: device,
-        format: swapChainFormat,
-        usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC
-    });
-
+import { PhongMaterial } from "../../materials";
+import Primitive from "../../scene/primitive";
+import Camera from "../../core/camera";
+import { createDevice } from "../../graphics/device";
+const main = async (canvas: HTMLCanvasElement) => {
+    const device = await createDevice(canvas);
     const cube = new Cube(1.0);
-    const plane = new Plane(10.0);
-
-    const positionBuffer = createBuffer(device, cube.positions, GPUBufferUsage.VERTEX);
-    const normalBuffer = createBuffer(device, cube.normals as Float32Array, GPUBufferUsage.VERTEX);
-    const texCoordsBuffer = createBuffer(device, cube.texCoords as Float32Array, GPUBufferUsage.VERTEX);
-
-    const indexBuffer = createBuffer(device, cube.indices, GPUBufferUsage.INDEX);
-
-    let view_matrix = mat4.lookAt(mat4.create(), [0, 0, 5], [0, 0, 0], [0, 1, 0]);
-    let projection_matrix = mat4.perspective(mat4.create(), Math.PI / 4, canvas.width / canvas.height, 0.1, 100.0);
-    let view_proj = mat4.multiply(mat4.create(), projection_matrix, view_matrix);
+    const phongMaterial = new PhongMaterial(vec3.fromValues(1.0, 0.0, 0.0), vec3.fromValues(1.0, 1.0, 1.0), 32.0);
+    const primitive = new Primitive(cube, phongMaterial);
+    // const {layout, vertexBuffers, indexBuffer} = createGeometryBuffer(device, cube);
+    const { layout, vertexBuffers, indexBuffer } = createGeometryBuffer(device.device, primitive.geometry);
+    const camera = new Camera(
+        vec3.fromValues(0.0, 0.0, 5.0),
+        vec3.fromValues(0.0, 0.0, 0.0),
+        vec3.fromValues(0.0, 1.0, 0.0),
+        45.0 * Math.PI / 180.0,
+        canvas.width / canvas.height,
+        0.1,
+        100.0
+    )
     let model = mat4.create();
     let normalMatrix = mat4.create();
     const viewProjUniformBuffer = device.createBuffer({
@@ -74,42 +63,7 @@ const main = async () => {
         vertex: {
             module: shaderModule,
             entryPoint: "vs_main",
-            buffers: [
-                {
-                    stepMode: "vertex",
-                    arrayStride: 3 * 4,
-                    attributes: [
-                        {
-                            shaderLocation: 0,
-                            offset: 0,
-                            format: "float32x3"
-
-                        },
-                    ]
-                },
-                {
-                    stepMode: "vertex",
-                    arrayStride: 3 * 4,
-                    attributes: [
-                        {
-                            shaderLocation: 1,
-                            offset: 0,
-                            format: "float32x3"
-                        }
-                    ]
-                },
-                {
-                    stepMode: "vertex",
-                    arrayStride: 2 * 4,
-                    attributes: [
-                        {
-                            shaderLocation: 2,
-                            offset: 0,
-                            format: "float32x2"
-                        }
-                    ]
-                }
-            ]
+            buffers: layout
         },
         fragment: {
             module: shaderModule,
@@ -228,11 +182,18 @@ const main = async () => {
         passEncoder.setPipeline(pipeline);
         passEncoder.setBindGroup(0, uniformBindGroup);
         passEncoder.setViewport(0, 0, canvas.width, canvas.height, 0, 1);
-        passEncoder.setVertexBuffer(0, positionBuffer);
-        passEncoder.setVertexBuffer(1, normalBuffer);
-        passEncoder.setVertexBuffer(2, texCoordsBuffer);
+        passEncoder.setVertexBuffer(0, vertexBuffers[0]);
+        passEncoder.setVertexBuffer(1, vertexBuffers[1]);
+        passEncoder.setVertexBuffer(2, vertexBuffers[2]);
         passEncoder.setIndexBuffer(indexBuffer, "uint16");
-        passEncoder.drawIndexed(cube.indices.length, 1, 0, 0, 0);
+        passEncoder.drawIndexed(plane.indices.length, 1, 0, 0, 0);
+
+        // passEncoder.setVertexBuffer(0, planeVertexBuffers[0]);
+        // passEncoder.setVertexBuffer(1, planeVertexBuffers[1]);
+        // passEncoder.setVertexBuffer(2, planeVertexBuffers[2]);
+        // passEncoder.setIndexBuffer(planeIndexBuffer, "uint16");
+        // passEncoder.drawIndexed(plane.indices.length, 1, 0, 0, 0);
+
         passEncoder.end();
         device.queue.submit([commandEncoder.finish()]);
         requestAnimationFrame((t) => render(t));

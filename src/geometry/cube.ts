@@ -59,4 +59,6 @@ export default class Cube extends Geometry {
         ]);
         super(positions, indices, normals, uvs);
     }
+
+
 }

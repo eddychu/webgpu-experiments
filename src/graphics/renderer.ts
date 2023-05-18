@@ -1,5 +1,4 @@
 import { mat4 } from "gl-matrix";
-import Geometry from "../geometry";
 import Scene, { CameraNode, InstancedMeshNode, LightNode, MeshNode } from "../scene";
 import { createBuffer } from "./resource";
 import { PointLight } from "../lights";
@@ -91,8 +90,6 @@ export default class Renderer {
                 depthCompare: "less",
             },
         });
-
-
     }
     public render(scene: Scene) {
         const commandEncoder = this._device.createCommandEncoder();

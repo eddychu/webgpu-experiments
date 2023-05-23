@@ -9,8 +9,11 @@ import experiment8 from "./experiments/008-instanced"
 import experiment9 from "./experiments/009-texture"
 import experiment10 from "./experiments/010-skybox"
 import experiment11 from "./experiments/011-shadowmap"
+import experiment12 from "./experiments/012-rasterizer"
 
-const canvas = document.getElementById("mycanvas") as HTMLCanvasElement;
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-experiment11(canvas);
+// const canvas = document.getElementById("mycanvas") as HTMLCanvasElement;
+// canvas.width = window.innerWidth;
+// canvas.height = window.innerHeight;
+// experiment11(canvas);
+
+experiment12();

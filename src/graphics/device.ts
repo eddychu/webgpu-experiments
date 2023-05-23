@@ -30,7 +30,6 @@ export default class Device {
         return buffer;
     };
 
-    public
 
 };
 

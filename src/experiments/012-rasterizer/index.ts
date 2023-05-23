@@ -10,10 +10,10 @@ export default async function init() {
     const adapter = await navigator.gpu.requestAdapter() as GPUAdapter;
     const device = await adapter.requestDevice();
     const dom = document.querySelector("canvas") as HTMLCanvasElement;
-    dom.width = 256;
-    dom.height = 256;
-    dom.style.width = "256px";
-    dom.style.height = "256px";
+    // dom.width = 256;
+    // dom.height = 256;
+    // dom.style.width = "256px";
+    // dom.style.height = "256px";
 
     const ctx = dom.getContext("webgpu") as GPUCanvasContext;
     const format = navigator.gpu.getPreferredCanvasFormat();

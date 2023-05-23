@@ -1,6 +1,7 @@
 
 import screenShader from "./rasterizer.wgsl?raw";
 import rasterizerShader from "./compute.wgsl?raw";
+import { mat4 } from "gl-matrix";
 async function loadModel() {
 
 }
@@ -10,10 +11,10 @@ export default async function init() {
     const adapter = await navigator.gpu.requestAdapter() as GPUAdapter;
     const device = await adapter.requestDevice();
     const dom = document.querySelector("canvas") as HTMLCanvasElement;
-    // dom.width = 256;
-    // dom.height = 256;
-    // dom.style.width = "256px";
-    // dom.style.height = "256px";
+    dom.width = 800;
+    dom.height = 800;
+    dom.style.width = "256px";
+    dom.style.height = "256px";
 
     const ctx = dom.getContext("webgpu") as GPUCanvasContext;
     const format = navigator.gpu.getPreferredCanvasFormat();
@@ -67,12 +68,28 @@ function createComputePass(ctx: GPUCanvasContext, device: GPUDevice) {
         size: outputColorBufferSize,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
     });
-
-    const UBOBufferSize = 4 * 2;// screen width & height
+    // a mat4 and 2 f32 for width and height
+    const UBOBufferSize = 4 * 4 * 4 + 4 * 4;
     const UBOBuffer = device.createBuffer({
         size: UBOBufferSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
+
+    const vertices = new Float32Array([
+        200, 200, 10,
+        300, 200, 50,
+        200, 300, 50,
+    ]);
+    const vertexCount = vertices.length / 3;
+    const vertexBuffer = device.createBuffer({
+        size: vertices.byteLength,
+        usage: GPUBufferUsage.STORAGE,
+        mappedAtCreation: true,
+    });
+
+    new Float32Array(vertexBuffer.getMappedRange()).set(vertices);
+
+    vertexBuffer.unmap();
 
     const bindGroupLayout = device.createBindGroupLayout({
         entries: [
@@ -89,6 +106,13 @@ function createComputePass(ctx: GPUCanvasContext, device: GPUDevice) {
                 buffer: {
                     type: "uniform",
                 },
+            },
+            {
+                binding: 2,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: {
+                    type: "read-only-storage"
+                }
             }
         ]
     });
@@ -107,6 +131,12 @@ function createComputePass(ctx: GPUCanvasContext, device: GPUDevice) {
                 resource: {
                     buffer: UBOBuffer
                 }
+            },
+            {
+                binding: 2,
+                resource: {
+                    buffer: vertexBuffer
+                }
             }
         ]
     });
@@ -119,7 +149,14 @@ function createComputePass(ctx: GPUCanvasContext, device: GPUDevice) {
 
     const addComputePass = (commandEncoder: GPUCommandEncoder) => {
         // Write values to uniform buffer object
-        const uniformData = [WIDTH, HEIGHT];
+        const projMatrix = mat4.create();
+        mat4.perspective(projMatrix, 45 * Math.PI / 180, WIDTH / HEIGHT, 0.1, 100);
+        const viewMatrix = mat4.create();
+        mat4.lookAt(viewMatrix, [0, 0, 5], [0, 0, 0], [0, 1, 0]);
+        const mvp = mat4.create();
+        mat4.multiply(mvp, projMatrix, viewMatrix);
+
+        const uniformData = [...mvp, WIDTH, HEIGHT];
         const uniformTypedArray = new Float32Array(uniformData);
         device.queue.writeBuffer(UBOBuffer, 0, uniformTypedArray.buffer);
 
@@ -127,7 +164,7 @@ function createComputePass(ctx: GPUCanvasContext, device: GPUDevice) {
 
         passEncoder.setPipeline(rasterizerPipeline);
         passEncoder.setBindGroup(0, bindGroup);
-        passEncoder.dispatchWorkgroups(WIDTH * HEIGHT / 256);
+        passEncoder.dispatchWorkgroups(1);
 
         passEncoder.end();
     }
